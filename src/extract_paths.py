@@ -7,6 +7,7 @@ import cPickle as pickle # For Python 2.7
 import operator
 import os
 from os.path import exists
+import random
 
 def read_and_analyze_alternative_paths(total_results_path, type_index_path, list_elems_path):
     """
@@ -17,7 +18,7 @@ def read_and_analyze_alternative_paths(total_results_path, type_index_path, list
             +Type: str
             +Pickle type: 2D numpy.array. Rows are phenotype-genotype pairs.
                 Columns are path types
-        - list_elems: Location of the file where list of computed pairs are stored.
+        -list_elems: Location of the file where list of computed pairs are stored.
                     Serves as row index.
             +Type: str
             +Pickle type: list[(phenotype_id ,genotype_id)]
@@ -106,7 +107,7 @@ def merge_alternative_paths(total_results, list_elems, type_index, partial_list)
         -total_results: previous paths stored
             +Type: 2D numpy.array. Rows are phenotype-genotype pairs.
                 Columns are path types
-        - list_elems: list of computed pairs. Serves as row index.
+        -list_elems: list of computed pairs. Serves as row index.
             +Type: list[(phenotype_id ,genotype_id)]
         -type_index: dictionary of path type and column index
             +Type: dict{path_type, index}
@@ -329,6 +330,116 @@ def get_disconnected_phenotype_genotype_paths(phenotypes_ids,\
         persist_alternative_paths(total_results, list_elems, type_index,
                                   total_results_path, list_elems_path,
                                   type_index_path, continuing)
+    return
+
+def get_pair_dataset(phenotypes_ids, genotypes_ids,
+        phenotypes_genes_links, genotypes_genes_links, set_size,
+        excluded_pairs=set()):
+    """
+    Given a list of genotypes and phenotypes, build a random set of
+    genotype-phenotype pairs, with specific size and equal number of connected
+    and disconnected pairs. An additional set of excluded pairs can be used
+    to avoid including certain pairs in the new set.
+    
+    Args:
+        -phenotypes_ids: List of phenotypes
+            +Type: list[str]
+        -genotypes_ids: List of genotypes
+            +Type: list[str]
+        -phenotypes_genes_links: List of phenotype-genes links
+            +Type: list[(str,str)]
+        -genotypes_genes_links: List of genotype-genes links
+            +Type: list[(str,str)]
+        -set_size: The new set's size
+            +Type: int
+        -excluded_pairs: A set of pairs to be excluded
+            +Type: set{((str,str),bool)}
+    Returns:
+        -new_set: A set of random pairs, and wether they are linked
+            +Type: set{((str,str),bool)}
+    """
+    pair_count = 0
+    new_set = set()
+    #We count the number of pairs until achieving the fixed (training set) size
+    while pair_count < set_size:
+        #Get a random phenotype
+        p_id = random.choice(phenotypes_ids)
+        #Get the list of linked genes
+        p_genes = list(set([i[1] for i in phenotypes_genes_links if i[0]==p_id]))
+        #Get the list of the linked genotypes
+        p_genotypes = list(set([i[0] for i in genotypes_genes_links if i[1] in p_genes]))
+        #If pair_count is even, the new pair will be connected, else it is disconnected.
+        if pair_count%2 == 0:
+            #However unlikely, there may be no disconnected genotypes with the current phenotype
+            if len(p_genotypes)==0: continue
+            g_id = random.choice(p_genotypes)
+            #Avoid the pair if it was already added, or must be excluded
+            if ((p_id, g_id), True) in new_set|excluded_pairs: continue
+            new_set.add(((p_id, g_id), True))
+        else:
+            #Deduce the list of unlinked genotypes
+            p_unlinked_genotypes = list(set(genotypes_ids).difference(p_genotypes))
+            if len(p_genotypes)==0: continue
+            g_id = random.choice(p_genotypes)
+            #Avoid the pair if it was already added, or must be excluded
+            if ((p_id, g_id), False) in new_set|excluded_pairs: continue
+            new_set.add(((p_id, g_id), False))
+        pair_count += 1
+    return new_set
+
+def get_all_pair_datasets_for_NN(phenotypes_ids, genotypes_ids,
+        phenotypes_genes_links, genotypes_genes_links, tr_size=1000,
+        training_set_path = '../neural_net/training_set.pkl',
+        validation_set_path = '../neural_net/validation_set.pkl',
+        testing_set_path = '../neural_net/testing_set.pkl'):
+    """
+    Given a list of genotypes and phenotypes, select three sets of
+    genotype-phenotype pairs, each with equal number of connected and
+    disconnected pairs. These sets are used for training a classifier based on
+    a neural network, respectively as the training (size = tr_size),
+    validating (size = 0.25*tr_size), and testing sets (size = 0.15*tr_size).
+    
+    Args:
+        -phenotypes_ids: List of phenotypes
+            +Type: list[str]
+        -genotypes_ids: List of genotypes
+            +Type: list[str]
+        -phenotypes_genes_links: List of phenotype-genes links
+            +Type: list[(str,str)]
+        -genotypes_genes_links: List of genotype-genes links
+            +Type: list[(str,str)]
+        -tr_size: Training set size (other sets are proportional to it)
+            +Type: int
+        -training_set_path: Location of the file where the training set is stored
+            +Type: str
+        -validation_set_path: Location of the file where the validation set is stored
+            +Type: str
+        -testing_set_path: Location of the file where the testing set is stored
+            +Type: str
+    Returns:
+        None. Persists data.
+    """
+    # Built from smallest to largest, as pairs included in previous sets
+    # must be excluded from newly built sets.
+    print "Building testing set..."
+    testing_set = get_pair_dataset(phenotypes_ids, genotypes_ids,
+            phenotypes_genes_links, genotypes_genes_links, tr_size*0.15)
+    pickle.dump(testing_set, open(testing_set_path, "wb"))
+    print testing_set
+    print "----------------------------------------------------------------"
+    print "Building validation set..."
+    validation_set = get_pair_dataset(phenotypes_ids, genotypes_ids,
+            phenotypes_genes_links, genotypes_genes_links, tr_size*0.25,
+            excluded_pairs=testing_set)
+    pickle.dump(validation_set, open(validation_set_path, "wb"))
+    print validation_set
+    print "----------------------------------------------------------------"
+    print "Building training set..."
+    training_set = get_pair_dataset(phenotypes_ids, genotypes_ids,
+            phenotypes_genes_links, genotypes_genes_links, tr_size,
+            excluded_pairs=testing_set|validation_set)
+    pickle.dump(training_set, open(training_set_path, "wb"))
+    print training_set
     return
 
 def find_phenotype_genotype_alternative_paths(argv):
