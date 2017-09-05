@@ -46,14 +46,14 @@ def read_and_analyze_alternative_paths(total_results_path, type_index_path, list
     #Sort path types by index (i.e., dictonary value)
     sorted_types = sorted(type_index.items(), key=operator.itemgetter(1))
     #Print data
-    print('-----------------------------')
-    print('Statistics for',len(list_elems),'phenotype-genotype pairs')
-    print('corresponding to',len(set([x[0] for x in list_elems])),'unique phenotypes')
-    print('-----------------------------')
-    print("Path_type \t Mean \t StdDev")
+    print '-----------------------------'
+    print 'Statistics for',len(list_elems),'phenotype-genotype pairs'
+    print 'corresponding to',len(set([x[0] for x in list_elems])), 'unique phenotypes'
+    print '-----------------------------'
+    print "Path_type \t Mean \t StdDev"
     for elem in zip(sorted_types,means,stddevs):
-        print(elem[0][0],'\t ',elem[1],'\t ',elem[2])
-    print('-----------------------------')
+        print elem[0][0],'\t ',elem[1],'\t ',elem[2]
+    print '-----------------------------'
 
 
 def persist_alternative_paths(total_results, list_elems, type_index,
@@ -368,8 +368,9 @@ def get_pair_dataset(phenotypes_ids, genotypes_ids,
         -excluded_pairs: A set of pairs to be excluded
             +Type: set{(str,str)}
     Returns:
-        -new_set: A set of random pairs, wether they are linked, and their alternate paths
-            +Type: set{(str,str,bool,tuple((str,int)))}
+        -new_numpy_set: A numpy array representing a set of random pairs,
+            contains information on wether they are linked, and their alternate paths
+            +Type: np.array[[str,str,bool,dict{str,int}]]
     """
     new_set_as_list = [] # The new set currently being built, as a list
     new_set_exclude = set() # The new set as an 'excluded_pairs' set (just the pairs)
@@ -425,16 +426,16 @@ def get_pair_dataset(phenotypes_ids, genotypes_ids,
     pool.join()
     # Append each path dictionnary to the corresponding pair in the set.
     for i in range(set_size):
-        new_set_as_list[i].append(tuple(paths_list[i][2].items()))
-        new_set_as_list[i] = tuple(new_set_as_list[i])
+        new_set_as_list[i].append(paths_list[i][2])
+        # new_set_as_list[i] = tuple(new_set_as_list[i])
     
     # Step 3: turn the list of pairs into an actual set, print out some pairs
     print '(3) Sample pairs from newly built set:'
-    new_set = set(x for x in new_set_as_list)
-    new_set_sample = random.sample(new_set, min(set_size, 10))
-    for pair in new_set_sample:
-        print pair
-    return new_set
+    new_numpy_set = np.array(new_set_as_list)
+    sample_rows = np.random.choice(range(set_size), size=min(set_size, 10))
+    for row in sample_rows:
+        print new_numpy_set[row]
+    return new_numpy_set
 
 
 def get_all_pair_datasets_for_NN(phenotypes_ids, genotypes_ids,
@@ -499,8 +500,6 @@ def get_all_pair_datasets_for_NN(phenotypes_ids, genotypes_ids,
             genes_ids, phenotypes_links, genotypes_links,
             phenotypes_genes_links, genotypes_genes_links, tr_size,
             excluded_pairs=excluded)
-    np.save(training_set_path, training_set)
-    return
 
 
 def find_phenotype_genotype_alternative_paths(argv):
