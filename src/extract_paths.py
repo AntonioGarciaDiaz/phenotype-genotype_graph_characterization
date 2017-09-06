@@ -500,6 +500,7 @@ def get_all_pair_datasets_for_NN(phenotypes_ids, genotypes_ids,
             genes_ids, phenotypes_links, genotypes_links,
             phenotypes_genes_links, genotypes_genes_links, tr_size,
             excluded_pairs=excluded)
+    np.save(training_set_path, training_set)
 
 
 def find_phenotype_genotype_alternative_paths(argv):
