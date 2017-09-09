@@ -395,7 +395,7 @@ def get_pair_dataset(phenotypes_ids, genotypes_ids,
             g_id = random.choice(p_genotypes)
             #Avoid the pair if it was already added, or must be excluded
             if (p_id, g_id) in new_set_exclude|excluded_pairs: continue
-            new_element = [p_id, g_id, True]
+            new_element = [p_id, g_id, 1]
         else:
             #Deduce the list of unlinked genotypes
             p_unlinked_genotypes = list(set(genotypes_ids).difference(p_genotypes))
@@ -404,7 +404,7 @@ def get_pair_dataset(phenotypes_ids, genotypes_ids,
             g_id = random.choice(p_genotypes)
             #Avoid the pair if it was already added, or must be excluded
             if (p_id, g_id) in new_set_exclude|excluded_pairs: continue
-            new_element = [p_id, g_id, False]
+            new_element = [p_id, g_id, 0]
         
         # Append new element to set
         new_set_as_list.append(new_element)

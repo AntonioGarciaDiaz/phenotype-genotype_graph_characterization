@@ -13,5 +13,5 @@ print "DONE!\n"
 
 # Build training, validation, and testing sets for neural network
 print "Building pair datasets for NN..."
-get_all_pair_datasets_for_NN(phenotypes, genotypes, genes, ph_ph_links, go_go_links, ph_gn_links, go_gn_links, tr_size=100)
+get_all_pair_datasets_for_NN(phenotypes, genotypes, genes, ph_ph_links, go_go_links, ph_gn_links, go_gn_links, tr_size=1000)
 print "DONE!\n"
