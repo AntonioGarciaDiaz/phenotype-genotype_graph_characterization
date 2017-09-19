@@ -29,6 +29,35 @@ def f_beta_score(precision, recall, beta=1):
     f_beta = (1+beta_sq)*(precision*recall)/((beta_sq*precision)+recall)
     return f_beta
 
+def get_input_vars_from_set(path_dicts, path_types):
+    """
+    Get the list of input variables for every item in a dataset.
+    This function uses a dictionary of alternate paths, and a list of all
+    possible path types, to turn the dictionary into a list of integers,
+    representing the number of alternate paths for each possible type.
+    
+    Args:
+        -path_dicts: A list of dictionaries of alternate path types,
+            representing alternate path types, and the number of paths.
+            +Type: list[dict{str,int}]
+        -input_vars: A list of all possible alternate path types.
+            +Type: list[str]
+    Returns:
+        -input_vars: The number of alternate paths of each type,
+            in the same order as path_types.
+            +Type: list[list[int]]
+    """
+    input_vars = []
+    for pth_dic in path_dicts:
+        next_in_vars = []
+        for path in path_types:
+            if path in pth_dic:
+                next_in_vars.append(pth_dic[path])
+            else:
+                next_in_vars.append(0)
+        input_vars.append(next_in_vars)
+    return input_vars
+
 def build_NN_model(n_inputs, n_layers, n_neurons, act_funct, opt_algorithm):
     """
     Create a Keras sequential neural network model, with sigmoid output
@@ -62,7 +91,7 @@ def build_NN_model(n_inputs, n_layers, n_neurons, act_funct, opt_algorithm):
 
 def relevant_statistics(predictions):
     """
-    Analyses predictions made by a (neural network) estimator on a testing
+    Analyses predictions made by a (neural network) estimator on a verification
     set, and calculates some relevant statistics: the precision, recall,
     and f1-score relative to positives (conn) and negatives (disc).
     
@@ -125,39 +154,35 @@ numpy.random.seed(seed)
 
 print 'Loading datasets...',
 # Load training, validation, and testing datasets
-training_set_conn = numpy.load('../neural_net/training_set/total_results_conn.npy')
-validation_set_conn = numpy.load('../neural_net/validation_set/total_results_conn.npy')
-testing_set_conn = numpy.load('../neural_net/testing_set/total_results_conn.npy')
-training_set_disc = numpy.load('../neural_net/training_set/total_results_conn.npy')
-validation_set_disc = numpy.load('../neural_net/validation_set/total_results_conn.npy')
-testing_set_disc = numpy.load('../neural_net/testing_set/total_results_conn.npy')
-print 'DONE!'
-
-print 'Getting input and output variables...',
-# Add the correct output for every input, join the two parts and shuffle
-for pair in training_set_conn: pair.add(1)
-for pair in validation_set_conn: pair.add(1)
-for pair in testing_set_conn: pair.add(1)
-for pair in training_set_disc: pair.add(0)
-for pair in validation_set_disc: pair.add(0)
-for pair in testing_set_disc: pair.add(0)
-
-training_set = numpy.union1d(training_set_conn,training_set_disc)
-validation_set = numpy.union1d(training_set_conn,training_set_disc)
-testing_set = numpy.union1d(training_set_conn,training_set_disc)
+training_set = numpy.load('../neural_net/training_set.npy')
+validation_set = numpy.load('../neural_net/validation_set.npy')
+testing_set = numpy.load('../neural_net/testing_set.npy')
 numpy.random.shuffle(training_set)
 numpy.random.shuffle(validation_set)
 numpy.random.shuffle(testing_set)
+print 'DONE!'
 
-# Get input variables from training set (path counts, all but last element)
-training_input = [x[:-1] for x in training_set]
-validation_input = [x[:-1] for x in validation_set]
-testing_input = [x[:-1] for x in testing_set]
+print 'Getting input and output variables...',
+# Get raw input variables from training set (as lists of dictionaries)
+training_raw_input = [x[3] for x in training_set]
+validation_raw_input = [x[3] for x in validation_set]
+testing_raw_input = [x[3] for x in testing_set]
 
-# Get output variables from training set (last element, 1 or 0)
-training_output = [x[-1] for x in training_set]
-validation_output = [x[-1] for x in validation_set]
-testing_output = [x[-1] for x in testing_set]
+# Get the set of all possible path types, from the input of all sets
+# This is used to set the number of inputs for the NN (1 imput = 1 path type)
+path_types = set().union(*(dic.keys() for dic in training_raw_input))
+path_types.update(*(dic.keys() for dic in validation_raw_input))
+path_types.update(*(dic.keys() for dic in testing_raw_input))
+
+# Get input variables from training set
+training_input = get_input_vars_from_set(training_raw_input, path_types)
+validation_input = get_input_vars_from_set(validation_raw_input, path_types)
+testing_input = get_input_vars_from_set(testing_raw_input, path_types)
+
+# Get output variables from training set
+training_output = [x[2] for x in training_set]
+validation_output = [x[2] for x in validation_set]
+testing_output = [x[2] for x in testing_set]
 print 'DONE!'
 
 print '---------------------------------------------------------------'

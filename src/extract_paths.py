@@ -338,15 +338,177 @@ def get_disconnected_phenotype_genotype_paths(phenotypes_ids,\
     return
 
 
+# ----------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------
+
+
 def get_pair_dataset(phenotypes_ids, genotypes_ids,
+        genes_ids, phenotypes_links, genotypes_links,
+        phenotypes_genes_links, genotypes_genes_links, set_size,
+        excluded_pairs=set(), continuing=False,
+        total_results_conn_path = '../neural_net/total_results_disc.pkl',
+        list_elems_conn_path = '../neural_net/list_elems_disc.pkl',
+        type_index_conn_path = '../neural_net/type_index_disc.pkl',
+        total_results_disc_path = '../neural_net/total_results_disc.pkl',
+        list_elems_disc_path = '../neural_net/list_elems_disc.pkl',
+        type_index_disc_path = '../neural_net/type_index_disc.pkl'):
+    """
+    Given a list of genotypes and phenotypes, builds and persists a random
+    dataset of genotype-phenotype pairs, with an equal number of connected and
+    disconnected pairs. The data is persisted as two sets (for connected and
+    disconnected pairs) of three numpy files, that are read as a double entry
+    box, in the style produced by merge_alternative_paths.
+    
+    An additional set of excluded pairs can be added to prevent certain pairs
+    from appearing in the new set. In that case, the method adds the newly
+    generated pairs to that set (by default an empty set). The final version
+    of this set is returned by the method.
+    
+    Args:
+        -phenotypes_ids: List of phenotypes
+            +Type: list[str]
+        -genotypes_ids: List of genotypes
+            +Type: list[str]
+        -genes_ids: List of genes
+            +Type: list[str]
+        -phenotypes_links: List of phenotype-phenotype links
+            +Type: list[(str,str)]
+        -genotypes_links: List of genotype-genotype links
+            +Type: list[(str,str)]
+        -phenotypes_genes_links: List of phenotype-genes links
+            +Type: list[(str,str)]
+        -genotypes_genes_links: List of genotype-genes links
+            +Type: list[(str,str)]
+        -set_size: The new set's size
+            +Type: int
+        -excluded_pairs: A set of pairs to be excluded
+            +Type: set{(str,str)}
+        -continuing: Is this process a continuation of a partial execution?
+            +Type: bool
+        -total_results_conn_path: path to partial and previous total_results_conn
+            +Type: str
+        -list_elems_conn_path: path to partial and previous list_elems_conn
+            +Type: str
+        -type_index_conn_path: path to partial and previous type_index_conn
+            +Type: str
+        -total_results_disc_path: path to partial and previous total_results_disc
+            +Type: str
+        -list_elems_disc_path: path to partial and previous list_elems_disc
+            +Type: str
+        -type_index_disc_path: path to partial and previous type_index_disc
+            +Type: str
+    Returns:
+        -excluded_pairs: A set of pairs to be excluded for an eventual new run
+            +Type: set{(str,str)}
+        Persists data.
+    """
+    #Initialize structures
+    if not continuing:
+        list_elems_conn = list_elems_disc = []
+        type_index_conn = type_index_disc = {}
+        total_results_conn = total_results_disc = np.empty([0,0])
+    #If we are continuing a previous partial execution
+    #load the precomputed values
+    else:
+        list_elems_conn = np.load(list_elems_conn_path)
+        list_elems_disc = np.load(list_elems_disc_path)
+        type_index_conn = np.load(type_index_conn_path)
+        type_index_disc = np.load(type_index_disc_path)
+        total_results_conn = np.load(total_results_conn_path)
+        total_results_disc = np.load(total_results_disc_path)
+        print 'Continuing from a previous computation'
+        print 'Total elements pre-computed:',len(list_elems_conn) + len(list_elems_disc)
+        print 'Total num. of different paths pre-found:',len(type_index_conn) + len(type_index_disc)
+        print 'Data matrix shape:',total_results.shape
+    
+    #Compute all the elements that will be used in the set.
+    pair_count = len(list_elems_conn) + len(list_elems_disc)
+    print 'Computing',set_size-pair_count,'new random elements for set.'
+    element_list = []
+    #We count the number of pairs until achieving the fixed (training set) size
+    while pair_count < set_size:
+        #Get a random phenotype
+        p_id = random.choice(phenotypes_ids)
+        #Get the list of linked genes
+        p_genes = list(set([i[1] for i in phenotypes_genes_links if i[0]==p_id]))
+        #Get the list of the linked genotypes
+        p_genotypes = list(set([i[0] for i in genotypes_genes_links if i[1] in p_genes]))
+        
+        #If pair_count is even, the new pair will be connected, else it is disconnected.
+        if pair_count%2 == 0:
+            #However unlikely, there may be no disconnected genotypes with the current phenotype
+            if len(p_genotypes)==0: continue
+            g_id = random.choice(p_genotypes)
+            #Avoid the pair if it was already added, or must be excluded
+            if (p_id, g_id) in excluded_pairs: continue
+            element_list.append(find_phenotype_genotype_alternative_paths([p_id, g_id,
+                                                                     phenotypes_ids,
+                                                                     genotypes_ids,
+                                                                     genes_ids,
+                                                                     phenotypes_links,
+                                                                     genotypes_links,
+                                                                     phenotypes_genes_links,
+                                                                     genotypes_genes_links]))
+        else:
+            #Deduce the list of unlinked genotypes
+            p_unlinked_genotypes = list(set(genotypes_ids).difference(p_genotypes))
+            #However unlikely, there may be no disconnected genotypes with the current phenotype
+            if len(p_unlinked_genotypes)==0: continue
+            g_id = random.choice(p_unlinked_genotypes)
+            #Avoid the pair if it was already added, or must be excluded
+            if (p_id, g_id) in excluded_pairs: continue
+            element_list.append(find_phenotype_genotype_alternative_paths([p_id, g_id,
+                                                                     phenotypes_ids,
+                                                                     genotypes_ids,
+                                                                     genes_ids,
+                                                                     phenotypes_links,
+                                                                     genotypes_links,
+                                                                     phenotypes_genes_links,
+                                                                     genotypes_genes_links]))
+        
+        #Every 1000 calculated pairs, save the current results
+        print pair_count, ','
+        if pair_count%1000 == 0:
+            print 'Current pair count =',pair_count,', saving data...',
+            total_results_disc, list_elems_disc, type_index_disc = merge_alternative_paths(total_results_disc, list_elems_disc, type_index_disc, element_list)
+            element_list = []
+            np.save(total_results_conn_path, np.array(total_results_conn))
+            np.save(total_results_disc_path, np.array(total_results_disc))
+            np.save(list_elems_conn_path, np.array(list_elems_conn))
+            np.save(list_elems_disc_path, np.array(list_elems_disc))
+            np.save(type_index_conn_path, np.array(list_elems_conn))
+            np.save(type_index_disc_path, np.array(type_index_disc))
+            print 'Data saved.'
+        excluded_pairs.add((p_id, g_id))
+        pair_count += 1
+        
+    print 'DONE! Saving data...',
+    total_results_disc, list_elems_disc, type_index_disc = merge_alternative_paths(total_results_disc, list_elems_disc, type_index_disc, element_list)
+    element_list = []
+    np.save(total_results_conn_path, np.array(total_results_conn))
+    np.save(total_results_disc_path, np.array(total_results_disc))
+    np.save(list_elems_conn_path, np.array(list_elems_conn))
+    np.save(list_elems_disc_path, np.array(list_elems_disc))
+    np.save(type_index_conn_path, np.array(list_elems_conn))
+    np.save(type_index_disc_path, np.array(type_index_disc))
+    print 'Data saved.'
+    return excluded_pairs
+
+
+def alternative_get_pair_dataset(phenotypes_ids, genotypes_ids,
         genes_ids, phenotypes_links, genotypes_links,
         phenotypes_genes_links, genotypes_genes_links, set_size,
         excluded_pairs=set()):
     """
-    Given a list of genotypes and phenotypes, builds a random set of
-    genotype-phenotype pairs, with a specific size and an equal number of
-    connected and disconnected pairs. An additional set of excluded pairs can
-    be added to prevent certain pairs from appearing in the new set.
+    Given a list of genotypes and phenotypes, builds and persists a random
+    dataset of genotype-phenotype pairs, with an equal number of connected and
+    disconnected pairs. The data is persisted as a single numpy file, an array
+    of arrays each corresponding to a pair, and containing information on its
+    path counts and wether or not it is connected.
+    
+    An additional set of excluded pairs can be added to prevent certain pairs
+    from appearing in the new set. 
     
     Args:
         -phenotypes_ids: List of phenotypes
@@ -400,8 +562,8 @@ def get_pair_dataset(phenotypes_ids, genotypes_ids,
             #Deduce the list of unlinked genotypes
             p_unlinked_genotypes = list(set(genotypes_ids).difference(p_genotypes))
             #However unlikely, there may be no disconnected genotypes with the current phenotype
-            if len(p_genotypes)==0: continue
-            g_id = random.choice(p_genotypes)
+            if len(p_unlinked_genotypes)==0: continue
+            g_id = random.choice(p_unlinked_genotypes)
             #Avoid the pair if it was already added, or must be excluded
             if (p_id, g_id) in new_set_exclude|excluded_pairs: continue
             new_element = [p_id, g_id, 0]
@@ -438,7 +600,92 @@ def get_pair_dataset(phenotypes_ids, genotypes_ids,
     return new_numpy_set
 
 
-def get_all_pair_datasets_for_NN(phenotypes_ids, genotypes_ids,
+# ----------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------
+
+
+def get_all_datasets_for_NN(phenotypes_ids, genotypes_ids,
+        genes_ids, phenotypes_links, genotypes_links,
+        phenotypes_genes_links, genotypes_genes_links, tr_size=1000,
+        training_set_path = '../neural_net/training_set',
+        validation_set_path = '../neural_net/validation_set',
+        testing_set_path = '../neural_net/testing_set'):
+    """
+    Given a list of genotypes and phenotypes, select three sets of
+    genotype-phenotype pairs, each with equal number of connected and
+    disconnected pairs. These sets are saved as two sets (connected and
+    disconnected) of three numpy binary files (.npy), each set representing
+    a double entry box of path counts (pairs x path types).
+    These are meant to be used for training a classifier based on a neural network.
+    They are treated respectively as the network's training (size = tr_size),
+    validating (size = 0.25*tr_size), and testing sets (size = 0.15*tr_size).
+    
+    Args:
+        -phenotypes_ids: List of phenotypes
+            +Type: list[str]
+        -genotypes_ids: List of genotypes
+            +Type: list[str]
+        -genes_ids: List of genes
+            +Type: list[str]
+        -phenotypes_links: List of phenotype-phenotype links
+            +Type: list[(str,str)]
+        -genotypes_links: List of genotype-genotype links
+            +Type: list[(str,str)]
+        -phenotypes_genes_links: List of phenotype-genes links
+            +Type: list[(str,str)]
+        -genotypes_genes_links: List of genotype-genes links
+            +Type: list[(str,str)]
+        -tr_size: Training set size (other sets are proportional to it)
+            +Type: int
+        -training_set_path: Location of the files that will constitute the training set
+            +Type: str
+        -validation_set_path: Location of the files that will constitute the validation set
+            +Type: str
+        -testing_set_path: Location of the files that will constitute the testing set
+            +Type: str
+    Returns:
+        None. Persists data.
+    """
+    # Built from smallest to largest, as pairs included in previous sets
+    # must be excluded from newly built sets.
+    print "Building testing set..."
+    excluded = get_pair_dataset(phenotypes_ids, genotypes_ids,
+            genes_ids, phenotypes_links, genotypes_links,
+            phenotypes_genes_links, genotypes_genes_links, int(round(tr_size*0.15)),
+            total_results_conn_path = testing_set_path+'/total_results_conn.npy',
+            list_elems_conn_path = testing_set_path+'/list_elems_conn.npy',
+            type_index_conn_path = testing_set_path+'/type_index_conn.npy',
+            total_results_disc_path = testing_set_path+'/total_results_disc.npy',
+            list_elems_disc_path = testing_set_path+'/list_elems_disc.npy',
+            type_index_disc_path = testing_set_path+'/type_index_disc.npy')
+    print "----------------------------------------------------------------"
+    print "Building validation set..."
+    excluded = get_pair_dataset(phenotypes_ids, genotypes_ids,
+            genes_ids, phenotypes_links, genotypes_links,
+            phenotypes_genes_links, genotypes_genes_links, int(round(tr_size*0.25)),
+            excluded_pairs=excluded,
+            total_results_conn_path = validation_set_path+'/total_results_conn.npy',
+            list_elems_conn_path = validation_set_path+'/list_elems_conn.npy',
+            type_index_conn_path = validation_set_path+'/type_index_conn.npy',
+            total_results_disc_path = validation_set_path+'/total_results_disc.npy',
+            list_elems_disc_path = validation_set_path+'/list_elems_disc.npy',
+            type_index_disc_path = validation_set_path+'/type_index_disc.npy')
+    print "----------------------------------------------------------------"
+    print "Building training set..."
+    excluded = get_pair_dataset(phenotypes_ids, genotypes_ids,
+            genes_ids, phenotypes_links, genotypes_links,
+            phenotypes_genes_links, genotypes_genes_links, tr_size,
+            excluded_pairs=excluded,
+            total_results_conn_path = training_set_path+'/total_results_conn.npy',
+            list_elems_conn_path = training_set_path+'/list_elems_conn.npy',
+            type_index_conn_path = training_set_path+'/type_index_conn.npy',
+            total_results_disc_path = training_set_path+'/total_results_disc.npy',
+            list_elems_disc_path = training_set_path+'/list_elems_disc.npy',
+            type_index_disc_path = training_set_path+'/type_index_disc.npy')
+
+
+def alternative_get_all_datasets_for_NN(phenotypes_ids, genotypes_ids,
         genes_ids, phenotypes_links, genotypes_links,
         phenotypes_genes_links, genotypes_genes_links, tr_size=1000,
         training_set_path = '../neural_net/training_set.npy',
@@ -447,8 +694,9 @@ def get_all_pair_datasets_for_NN(phenotypes_ids, genotypes_ids,
     """
     Given a list of genotypes and phenotypes, select three sets of
     genotype-phenotype pairs, each with equal number of connected and
-    disconnected pairs. These sets are stored as numpy binary files (.npy),
-    and meant to be used for training a classifier based on a neural network.
+    disconnected pairs. Each of these sets is saved as a single numpy
+    binary file (.npy), whose content can be used for training a classifier
+    based on a neural network.
     They are treated respectively as the network's training (size = tr_size),
     validating (size = 0.25*tr_size), and testing sets (size = 0.15*tr_size).
     
