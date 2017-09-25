@@ -128,26 +128,30 @@ print 'Loading datasets...',
 training_set_conn = numpy.load('../neural_net/training_set/total_results_conn.npy')
 validation_set_conn = numpy.load('../neural_net/validation_set/total_results_conn.npy')
 testing_set_conn = numpy.load('../neural_net/testing_set/total_results_conn.npy')
-training_set_disc = numpy.load('../neural_net/training_set/total_results_conn.npy')
-validation_set_disc = numpy.load('../neural_net/validation_set/total_results_conn.npy')
-testing_set_disc = numpy.load('../neural_net/testing_set/total_results_conn.npy')
+training_set_disc = numpy.load('../neural_net/training_set/total_results_disc.npy')
+validation_set_disc = numpy.load('../neural_net/validation_set/total_results_disc.npy')
+testing_set_disc = numpy.load('../neural_net/testing_set/total_results_disc.npy')
 print 'DONE!'
 
 print 'Getting input and output variables...',
 # Add the correct output for every input, join the two parts and shuffle
-for pair in training_set_conn: pair.add(1)
-for pair in validation_set_conn: pair.add(1)
-for pair in testing_set_conn: pair.add(1)
-for pair in training_set_disc: pair.add(0)
-for pair in validation_set_disc: pair.add(0)
-for pair in testing_set_disc: pair.add(0)
+for pair in training_set_conn: numpy.append(pair,1)
+for pair in validation_set_conn: numpy.append(pair,1)
+for pair in testing_set_conn: numpy.append(pair,1)
+for pair in training_set_disc: numpy.append(pair,0)
+for pair in validation_set_disc: numpy.append(pair,0)
+for pair in testing_set_disc: numpy.append(pair,0)
 
-training_set = numpy.union1d(training_set_conn,training_set_disc)
-validation_set = numpy.union1d(training_set_conn,training_set_disc)
-testing_set = numpy.union1d(training_set_conn,training_set_disc)
+training_set = numpy.concatenate((training_set_conn,training_set_disc), axis=0)
+validation_set = numpy.concatenate((training_set_conn,training_set_disc), axis=0)
+testing_set = numpy.concatenate((training_set_conn,training_set_disc), axis=0)
 numpy.random.shuffle(training_set)
 numpy.random.shuffle(validation_set)
 numpy.random.shuffle(testing_set)
+
+print training_set_conn
+print training_set_disc
+print training_set
 
 # Get input variables from training set (path counts, all but last element)
 training_input = [x[:-1] for x in training_set]
@@ -159,6 +163,9 @@ training_output = [x[-1] for x in training_set]
 validation_output = [x[-1] for x in validation_set]
 testing_output = [x[-1] for x in testing_set]
 print 'DONE!'
+
+print len(training_input), len(validation_input), len(testing_input)
+print len(training_output), len(validation_output), len(testing_output)
 
 print '---------------------------------------------------------------'
 print '-------------------NEURAL NETWORK COMPARISON-------------------'

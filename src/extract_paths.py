@@ -425,7 +425,8 @@ def get_pair_dataset(phenotypes_ids, genotypes_ids,
     #Compute all the elements that will be used in the set.
     pair_count = len(list_elems_conn) + len(list_elems_disc)
     print 'Computing',set_size-pair_count,'new random elements for set.'
-    element_list = []
+    partial_list_conn = []
+    partial_list_disc = []
     #We count the number of pairs until achieving the fixed (training set) size
     while pair_count < set_size:
         #Get a random phenotype
@@ -442,7 +443,7 @@ def get_pair_dataset(phenotypes_ids, genotypes_ids,
             g_id = random.choice(p_genotypes)
             #Avoid the pair if it was already added, or must be excluded
             if (p_id, g_id) in excluded_pairs: continue
-            element_list.append(find_phenotype_genotype_alternative_paths([p_id, g_id,
+            partial_list_conn.append(find_phenotype_genotype_alternative_paths([p_id, g_id,
                                                                      phenotypes_ids,
                                                                      genotypes_ids,
                                                                      genes_ids,
@@ -458,7 +459,7 @@ def get_pair_dataset(phenotypes_ids, genotypes_ids,
             g_id = random.choice(p_unlinked_genotypes)
             #Avoid the pair if it was already added, or must be excluded
             if (p_id, g_id) in excluded_pairs: continue
-            element_list.append(find_phenotype_genotype_alternative_paths([p_id, g_id,
+            partial_list_disc.append(find_phenotype_genotype_alternative_paths([p_id, g_id,
                                                                      phenotypes_ids,
                                                                      genotypes_ids,
                                                                      genes_ids,
@@ -468,29 +469,32 @@ def get_pair_dataset(phenotypes_ids, genotypes_ids,
                                                                      genotypes_genes_links]))
         
         #Every 1000 calculated pairs, save the current results
-        print pair_count, ','
-        if pair_count%1000 == 0:
+        if pair_count != 0 and pair_count%1000 == 0:
             print 'Current pair count =',pair_count,', saving data...',
-            total_results_disc, list_elems_disc, type_index_disc = merge_alternative_paths(total_results_disc, list_elems_disc, type_index_disc, element_list)
-            element_list = []
+            total_results_conn, list_elems_conn, type_index_conn = merge_alternative_paths(total_results_conn, list_elems_conn, type_index_conn, partial_list_conn)
+            total_results_disc, list_elems_disc, type_index_disc = merge_alternative_paths(total_results_disc, list_elems_disc, type_index_disc, partial_list_disc)
             np.save(total_results_conn_path, np.array(total_results_conn))
             np.save(total_results_disc_path, np.array(total_results_disc))
             np.save(list_elems_conn_path, np.array(list_elems_conn))
             np.save(list_elems_disc_path, np.array(list_elems_disc))
-            np.save(type_index_conn_path, np.array(list_elems_conn))
+            np.save(type_index_conn_path, np.array(type_index_conn))
             np.save(type_index_disc_path, np.array(type_index_disc))
             print 'Data saved.'
         excluded_pairs.add((p_id, g_id))
         pair_count += 1
+        print pair_count
         
     print 'DONE! Saving data...',
-    total_results_disc, list_elems_disc, type_index_disc = merge_alternative_paths(total_results_disc, list_elems_disc, type_index_disc, element_list)
-    element_list = []
+    print partial_list_conn
+    print partial_list_disc
+    total_results_conn, list_elems_conn, type_index_conn = merge_alternative_paths(total_results_conn, list_elems_conn, type_index_conn, partial_list_conn)
+    total_results_disc, list_elems_disc, type_index_disc = merge_alternative_paths(total_results_disc, list_elems_disc, type_index_disc, partial_list_disc)
+
     np.save(total_results_conn_path, np.array(total_results_conn))
     np.save(total_results_disc_path, np.array(total_results_disc))
     np.save(list_elems_conn_path, np.array(list_elems_conn))
     np.save(list_elems_disc_path, np.array(list_elems_disc))
-    np.save(type_index_conn_path, np.array(list_elems_conn))
+    np.save(type_index_conn_path, np.array(type_index_conn))
     np.save(type_index_disc_path, np.array(type_index_disc))
     print 'Data saved.'
     return excluded_pairs

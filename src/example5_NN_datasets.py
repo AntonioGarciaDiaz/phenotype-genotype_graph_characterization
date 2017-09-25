@@ -4,7 +4,8 @@ testing the NN based estimators.
 """
 
 from ontology_parser import load_data
-from extract_paths import get_all_pair_datasets_for_NN
+from extract_paths import get_all_datasets_for_NN
+# from extract_paths import alternative_get_all_datasets_for_NN
 
 # Load the ontology data into data structures
 print "Loading data into structures..."
